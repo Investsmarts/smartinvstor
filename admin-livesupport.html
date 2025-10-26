@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Admin Support — TrustDollar</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+<link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
+
+<style>
+:root {
+  --green:#00c853;
+  --green-dark:#00bfa5;
+  --bg:#f3f5f9;
+  --card:#fff;
+  --text:#222;
+}
+body {
+  font-family:'Poppins',sans-serif;
+  background:var(--bg);
+  margin:0;
+  height:100vh;
+  display:flex;
+  flex-direction:column;
+  color:var(--text);
+}
+/* Header */
+.header {
+  background:linear-gradient(135deg,var(--green),var(--green-dark));
+  color:#fff;
+  padding:8px 18px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  box-shadow:0 2px 6px rgba(0,0,0,0.15);
+}
+.header h1 {margin:0;font-size:15px;display:flex;align-items:center;gap:6px;}
+#adminStatus {
+  background:rgba(255,255,255,0.2);
+  padding:4px 10px;
+  border-radius:10px;
+  font-size:13px;
+}
+
+/* Layout */
+.container {
+  flex:1;
+  display:flex;
+  height:calc(100vh - 50px);
+}
+
+/* Sidebar */
+.users {
+  width:30%;
+  background:#fff;
+  border-right:1px solid #e5e5e5;
+  overflow-y:auto;
+}
+.user-item {
+  padding:10px 12px;
+  border-bottom:1px solid #f1f1f1;
+  cursor:pointer;
+  position:relative;
+  transition:all 0.2s;
+}
+.user-item:hover {background:#f8f9fa;}
+.user-item.selected {background:#e7f9ee;border-left:4px solid var(--green-dark);}
+.user-item b {display:block;font-size:14px;}
+.user-item small {color:#777;font-size:12px;display:block;}
+.red-dot,.green-dot {
+  width:9px;height:9px;border-radius:50%;position:absolute;top:16px;right:12px;
+}
+.red-dot {background:red;}
+.green-dot {background:#00d084;box-shadow:0 0 6px #00d084;}
+
+/* Chat */
+.chat {
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  background:var(--bg);
+}
+.chat-header {
+  background:#fff;
+  padding:10px 16px;
+  border-bottom:1px solid #eee;
+  box-shadow:0 1px 4px rgba(0,0,0,0.05);
+}
+.chat-header h2 {margin:0;font-size:15px;color:var(--green-dark);}
+.chat-header small {font-size:12px;color:#666;}
+
+/* Chat Box */
+.chat-box {
+  flex:1;
+  padding:16px;
+  overflow-y:auto;
+  display:flex;
+  flex-direction:column;
+}
+.msg {
+  max-width:75%;
+  padding:10px 14px;
+  border-radius:14px;
+  margin-bottom:10px;
+  font-size:13.5px;
+  line-height:1.4;
+  word-break:break-word;
+}
+.user-msg {
+  background:#fff;
+  align-self:flex-start;
+  box-shadow:0 1px 4px rgba(0,0,0,0.05);
+}
+.admin-msg {
+  background:linear-gradient(135deg,var(--green),var(--green-dark));
+  color:#fff;
+  align-self:flex-end;
+}
+.user-msg.unseen {background:#fff4f4;border:1px solid #ffd6d6;}
+
+/* Footer */
+.footer {
+  display:flex;
+  padding:10px;
+  background:#fff;
+  border-top:1px solid #eee;
+  align-items:center;
+}
+.footer input {
+  flex:1;
+  padding:9px 12px;
+  border:1px solid #ddd;
+  border-radius:8px;
+  font-size:13.5px;
+}
+.footer input:focus {outline:none;border-color:var(--green);}
+.footer button {
+  margin-left:8px;
+  background:linear-gradient(135deg,var(--green),var(--green-dark));
+  color:#fff;
+  border:none;
+  border-radius:8px;
+  padding:9px 14px;
+  cursor:pointer;
+  font-weight:600;
+  transition:0.2s;
+}
+.footer button:hover {opacity:0.9;}
+
+/* Scrollbars */
+.chat-box::-webkit-scrollbar,.users::-webkit-scrollbar {width:6px;}
+.chat-box::-webkit-scrollbar-thumb,.users::-webkit-scrollbar-thumb {
+  background:var(--green);
+  border-radius:10px;
+}
+@media(max-width:768px){.users{width:40%;}}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1><i class='bx bx-headphone'></i> Support Panel</h1>
+  <div id="adminStatus">🟢 Online</div>
+</div>
+
+<div class="container">
+  <div class="users" id="userList">Loading users...</div>
+
+  <div class="chat">
+    <div class="chat-header" id="chatHeader">
+      <h2>Select a user</h2><small>Messages will appear here</small>
+    </div>
+    <div class="chat-box" id="chatBox">
+      <div style="text-align:center;color:#888;margin-top:25px;">No chat selected</div>
+    </div>
+    <div class="footer">
+      <input type="text" id="msgInput" placeholder="Type reply...">
+      <button id="sendBtn"><i class='bx bx-send' style="font-size:18px;"></i></button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getFirestore, collection, doc, updateDoc, addDoc, serverTimestamp,
+  onSnapshot, query, orderBy, setDoc
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey:"AIzaSyDEQYPJFxQv8yFHptrTqoLHOn2L0PpgVhc",
+  authDomain:"btcinvest-c0e25.firebaseapp.com",
+  projectId:"btcinvest-c0e25",
+  storageBucket:"btcinvest-c0e25.firebasestorage.app",
+  messagingSenderId:"204937458487",
+  appId:"1:204937458487:web:cc27ece1249999279f60b2"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// ✅ Admin online / typing
+await setDoc(doc(db,"supportStatus","admin"),{online:true,typing:false},{merge:true}).catch(()=>{});
+window.addEventListener("beforeunload",()=>setDoc(doc(db,"supportStatus","admin"),{online:false},{merge:true}));
+
+const userList = document.getElementById("userList");
+const chatBox = document.getElementById("chatBox");
+const msgInput = document.getElementById("msgInput");
+const sendBtn = document.getElementById("sendBtn");
+const chatHeader = document.getElementById("chatHeader");
+
+let currentUID = null;
+let typingTimeout;
+
+// ✅ Load all users realtime
+onSnapshot(collection(db,"supportChats"),(snapshot)=>{
+  userList.innerHTML="";
+  if(snapshot.empty){
+    userList.innerHTML="<div style='padding:20px;text-align:center;color:#777;'>No active chats</div>";
+    return;
+  }
+
+  snapshot.forEach(docSnap=>{
+    const d=docSnap.data();
+    const div=document.createElement("div");
+    div.className="user-item";
+    div.dataset.uid=docSnap.id;
+
+    // Red dot = unread msg | Green dot = online
+    let dot="";
+    if(d.newMsg) dot="<span class='red-dot'></span>";
+    else if(d.online) dot="<span class='green-dot'></span>";
+
+    div.innerHTML=`
+      <b>${d.name||"User"}</b>
+      <small>${d.email||""}${d.typing?" • typing...":""}</small>
+      ${dot}
+    `;
+
+    div.onclick=()=>loadChat(docSnap.id,d,div);
+    userList.appendChild(div);
+  });
+});
+
+// ✅ Load specific user chat
+function loadChat(uid,userInfo,element){
+  currentUID=uid;
+  document.querySelectorAll(".user-item").forEach(x=>x.classList.remove("selected"));
+  element.classList.add("selected");
+  setDoc(doc(db,"supportChats",uid),{newMsg:false},{merge:true});
+
+  chatHeader.innerHTML=`<h2>${userInfo.name||"User"}</h2>
+  <small>${userInfo.email||""} ${userInfo.typing?"• typing...":""}</small>`;
+
+  const q=query(collection(db,"supportChats",uid,"messages"),orderBy("createdAt","asc"));
+  onSnapshot(q,(snapshot)=>{
+    chatBox.innerHTML="";
+    snapshot.forEach(s=>{
+      const d=s.data();
+      const m=document.createElement("div");
+      m.className="msg "+(d.from==="user"?"user-msg":"admin-msg");
+      if(d.from==="user"&&!d.seen)m.classList.add("unseen");
+      m.innerHTML=`${d.text}<br><small style="font-size:10px;opacity:0.7;">${formatTime(d.createdAt)}</small>`;
+      if(d.from==="user"&&!d.seen)setDoc(s.ref,{seen:true},{merge:true});
+      chatBox.appendChild(m);
+    });
+    chatBox.scrollTop=chatBox.scrollHeight;
+  });
+}
+
+// ✅ Send message
+sendBtn.addEventListener("click",sendMessage);
+msgInput.addEventListener("keypress",e=>{
+  if(e.key==="Enter"){ e.preventDefault(); sendMessage(); }
+});
+
+async function sendMessage(){
+  if(!currentUID)return;
+  const text=msgInput.value.trim();
+  if(!text)return;
+  await addDoc(collection(db,"supportChats",currentUID,"messages"),{
+    text,from:"admin",createdAt:serverTimestamp(),seen:false
+  });
+  msgInput.value="";
+}
+
+// ✅ Typing indicator
+msgInput.addEventListener("input",()=>{
+  setDoc(doc(db,"supportStatus","admin"),{typing:true},{merge:true});
+  clearTimeout(typingTimeout);
+  typingTimeout=setTimeout(()=>setDoc(doc(db,"supportStatus","admin"),{typing:false},{merge:true}),1000);
+});
+
+// ✅ Time formatter
+function formatTime(ts){
+  if(!ts) return "";
+  const date = ts.toDate ? ts.toDate() : ts;
+  let hrs=date.getHours(), mins=date.getMinutes();
+  const ampm=hrs>=12?"PM":"AM";
+  hrs=hrs%12||12;
+  mins=mins<10?"0"+mins:mins;
+  return `${hrs}:${mins} ${ampm}`;
+}
+</script>
+<script>
+/* ✅ Mobile keyboard fix for chat input overlap */
+const chatBox = document.getElementById('chatBox');
+const msgInput = document.getElementById('msgInput');
+
+// Recalculate height dynamically
+function adjustChatHeight() {
+  const vh = window.innerHeight * 0.01;
+  document.documentElement.style.setProperty('--vh', `${vh}px`);
+  chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+// Call initially and whenever window resizes (keyboard opens)
+window.addEventListener('resize', adjustChatHeight);
+window.addEventListener('orientationchange', adjustChatHeight);
+window.addEventListener('load', adjustChatHeight);
+
+// Handle input focus/blur properly
+msgInput.addEventListener('focus', () => {
+  setTimeout(() => {
+    chatBox.scrollTop = chatBox.scrollHeight;
+  }, 400);
+});
+
+msgInput.addEventListener('blur', () => {
+  setTimeout(() => {
+    chatBox.scrollTop = chatBox.scrollHeight;
+  }, 400);
+});
+
+// Auto scroll when new message is added
+const observer = new MutationObserver(() => {
+  chatBox.scrollTop = chatBox.scrollHeight;
+});
+observer.observe(chatBox, { childList: true });
+</script>
+
+</body>
+</html>

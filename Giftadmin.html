@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Admin — Send Gift</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  body{font-family:'Poppins',sans-serif;background:#f5f7fb;margin:0;color:#222}
+  .wrap{max-width:760px;margin:28px auto;padding:20px}
+  .card{background:#fff;padding:18px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.06)}
+  h1{margin:0 0 12px;font-size:20px;color:#0b8456}
+  label{display:block;margin-top:10px;font-weight:600;font-size:13px}
+  input[type="text"], input[type="number"], textarea{width:100%;padding:10px;border-radius:8px;border:1px solid #e6e8eb;margin-top:6px;font-size:14px}
+  button{background:#00c853;color:#fff;border:none;padding:10px 14px;border-radius:10px;cursor:pointer;margin-top:12px;font-weight:700}
+  .muted{color:#666;font-size:13px;margin-top:6px}
+  .row{display:flex;gap:12px}
+  .col{flex:1}
+  .hidden{display:none}
+  .info{background:#f1f8f4;border-radius:8px;padding:8px;margin-top:8px;color:#065c3a}
+  .danger{background:#fff3f2;border-radius:8px;padding:8px;margin-top:8px;color:#7a0b00}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card" id="lockCard">
+      <h1>Admin Panel — Login</h1>
+      <label>Enter Secret Key</label>
+      <input type="text" id="secretInput" placeholder="Secret key daalein">
+      <div class="muted">Secret key sahi dalne par hi admin options dikhenge.</div>
+      <button id="unlockBtn">Unlock Admin Panel</button>
+      <div id="lockMsg" class="danger hidden"></div>
+    </div>
+
+    <div class="card hidden" id="adminCard" style="margin-top:18px">
+      <h1>Send Gift to User</h1>
+
+      <label>User Gmail</label>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="emailInput" placeholder="user@example.com">
+        <button id="searchBtn">Search</button>
+      </div>
+      <div id="userFound" class="muted">No user selected</div>
+
+      <label>Gift Title</label>
+      <input type="text" id="titleInput" placeholder="e.g. Welcome Gift">
+
+      <label>Message</label>
+      <textarea id="msgInput" rows="3" placeholder="Message to the user (optional)"></textarea>
+
+      <label>Amount (₮)</label>
+      <input type="number" id="amountInput" placeholder="Amount in numbers" min="0" step="0.01">
+
+      <div style="display:flex;gap:10px">
+        <button id="sendBtn">Send Gift</button>
+        <button id="clearBtn" style="background:#e6e6e6;color:#333">Clear</button>
+      </div>
+
+      <div id="statusMsg" class="muted" style="margin-top:10px"></div>
+      <div class="info" id="notes" style="display:none">
+        Tip: Make sure the user exists in Firestore collection <code>users</code>. This panel queries by <b>email</b>.
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    // --- Firebase v10 modular imports ---
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import {
+      getFirestore, collection, query, where, getDocs,
+      doc, setDoc, addDoc, serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    // -------- CONFIG - Change if needed ----------
+    const firebaseConfig = {
+      apiKey: "AIzaSyDEQYPJFxQv8yFHptrTqoLHOn2L0PpgVhc",
+      authDomain: "btcinvest-c0e25.firebaseapp.com",
+      projectId: "btcinvest-c0e25",
+      storageBucket: "btcinvest-c0e25.firebasestorage.app",
+      messagingSenderId: "204937458487",
+      appId: "1:204937458487:web:cc27ece1249999279f60b2"
+    };
+    // Set your secret key (change this string)
+    const SECRET_KEY = "mera_secret_key_123"; // <<< change this to your secret
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // UI elements
+    const lockCard = document.getElementById('lockCard');
+    const adminCard = document.getElementById('adminCard');
+    const unlockBtn = document.getElementById('unlockBtn');
+    const secretInput = document.getElementById('secretInput');
+    const lockMsg = document.getElementById('lockMsg');
+
+    const emailInput = document.getElementById('emailInput');
+    const searchBtn = document.getElementById('searchBtn');
+    const userFound = document.getElementById('userFound');
+
+    const titleInput = document.getElementById('titleInput');
+    const msgInput = document.getElementById('msgInput');
+    const amountInput = document.getElementById('amountInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const statusMsg = document.getElementById('statusMsg');
+    const notes = document.getElementById('notes');
+
+    let selectedUser = null; // { uid, data }
+
+    // Simple unlock logic (front-end only)
+    unlockBtn.addEventListener('click', () => {
+      const v = (secretInput.value || "").trim();
+      if(v === SECRET_KEY){
+        lockCard.classList.add('hidden');
+        adminCard.classList.remove('hidden');
+        notes.style.display = 'block';
+        statusMsg.textContent = "Admin panel unlocked.";
+        lockMsg.classList.add('hidden');
+      } else {
+        lockMsg.textContent = "Invalid secret key!";
+        lockMsg.classList.remove('hidden');
+      }
+    });
+
+    // Search user by email in 'users' collection
+    searchBtn.addEventListener('click', async () => {
+      const email = (emailInput.value || "").trim().toLowerCase();
+      userFound.textContent = "Searching...";
+      selectedUser = null;
+      statusMsg.textContent = "";
+      if(!email){
+        userFound.textContent = "Please enter an email.";
+        return;
+      }
+      try {
+        const usersRef = collection(db, "users");
+        const q = query(usersRef, where("email", "==", email));
+        const snap = await getDocs(q);
+        if(snap.empty){
+          userFound.textContent = "User not found in Firestore.";
+          return;
+        }
+        // if multiple, pick first
+        const docSnap = snap.docs[0];
+        selectedUser = { uid: docSnap.id, data: docSnap.data() };
+        userFound.innerHTML = `User: <b>${selectedUser.data.name || selectedUser.data.displayName || "(no name)"}</b> • UID: ${selectedUser.uid}`;
+      } catch(err){
+        console.error(err);
+        userFound.textContent = "Error searching user.";
+      }
+    });
+
+    // Send gift
+    sendBtn.addEventListener('click', async () => {
+      statusMsg.textContent = "";
+      if(!selectedUser){
+        statusMsg.textContent = "Pehle user search karke select karo.";
+        return;
+      }
+      const amount = parseFloat(amountInput.value || 0);
+      const title = (titleInput.value || "").trim() || "Gift from Admin";
+      const message = (msgInput.value || "").trim() || "Admin gift";
+
+      if(isNaN(amount) || amount <= 0){
+        statusMsg.textContent = "Amount zero se bada hona chahiye.";
+        return;
+      }
+
+      // Create gift doc inside users/{uid}/gifts
+      try {
+        const userRef = doc(db, "users", selectedUser.uid);
+        const giftsColRef = collection(userRef, "gifts");
+        // add gift
+        await addDoc(giftsColRef, {
+          title: title,
+          message: message,
+          amount: Number(amount),
+          createdAt: serverTimestamp(),
+          from: "Admin",
+          claimed: false
+        });
+        statusMsg.textContent = `Gift sent to ${selectedUser.data.name || selectedUser.data.email || selectedUser.uid}`;
+        // optional: clear fields
+        titleInput.value = "";
+        msgInput.value = "";
+        amountInput.value = "";
+      } catch(err){
+        console.error(err);
+        statusMsg.textContent = "Error sending gift.";
+      }
+    });
+
+    clearBtn.addEventListener('click', () => {
+      emailInput.value = "";
+      titleInput.value = "";
+      msgInput.value = "";
+      amountInput.value = "";
+      userFound.textContent = "No user selected";
+      selectedUser = null;
+      statusMsg.textContent = "";
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Panel — TrustDollar</title>
+  <link href="https://cdn.jsdelivr.net/npm/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
+  <style>
+    body {
+      font-family: "Poppins", sans-serif;
+      background: #f0fdf4;
+      margin: 0;
+      padding: 20px;
+      color: #0f172a;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+    }
+    .container {
+      background: white;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+      width: 100%;
+      max-width: 600px;
+    }
+    h1 {
+      text-align: center;
+      color: #065f46;
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      font-weight: 600;
+      margin-top: 12px;
+      color: #065f46;
+    }
+    input, textarea {
+      width: 100%;
+      padding: 10px;
+      margin-top: 6px;
+      border: 1px solid #d1fae5;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-family: inherit;
+      box-sizing: border-box;
+    }
+    textarea {
+      resize: vertical;
+      min-height: 100px;
+    }
+    button {
+      margin-top: 16px;
+      background: linear-gradient(135deg, #16a34a, #15803d);
+      border: none;
+      color: white;
+      font-weight: 600;
+      padding: 12px 18px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 1rem;
+      width: 100%;
+      transition: all 0.25s ease;
+    }
+    button:hover {
+      transform: scale(1.05);
+      background: linear-gradient(135deg, #22c55e, #15803d);
+    }
+    .success {
+      margin-top: 15px;
+      padding: 12px;
+      background: #dcfce7;
+      border: 1px solid #86efac;
+      color: #166534;
+      border-radius: 10px;
+      text-align: center;
+      font-weight: 600;
+      display: none;
+    }
+    .error {
+      margin-top: 15px;
+      padding: 12px;
+      background: #fee2e2;
+      border: 1px solid #fca5a5;
+      color: #991b1b;
+      border-radius: 10px;
+      text-align: center;
+      font-weight: 600;
+      display: none;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h1>📢 Admin Announcement Panel</h1>
+
+    <label>Title</label>
+    <input type="text" id="titleInput" placeholder="Enter announcement title" />
+
+    <label>Message</label>
+    <textarea id="messageInput" placeholder="Write your announcement message..."></textarea>
+
+    <label>Admin Name</label>
+    <input type="text" id="adminNameInput" placeholder="Your name (e.g. TrustDollar Admin)" />
+
+    <button id="postBtn">Post Announcement</button>
+
+    <div id="successMsg" class="success">✅ Announcement posted successfully!</div>
+    <div id="errorMsg" class="error">❌ Failed to post announcement. Try again.</div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
+    import {
+      getFirestore, collection, addDoc, serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+
+    // 🔥 Firebase Config
+    const firebaseConfig = {
+      apiKey: "AIzaSyDEQYPJFxQv8yFHptrTqoLHOn2L0PpgVhc",
+      authDomain: "btcinvest-c0e25.firebaseapp.com",
+      projectId: "btcinvest-c0e25",
+      storageBucket: "btcinvest-c0e25.firebasestorage.app",
+      messagingSenderId: "204937458487",
+      appId: "1:204937458487:web:cc27ece1249999279f60b2"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const postBtn = document.getElementById("postBtn");
+    const successMsg = document.getElementById("successMsg");
+    const errorMsg = document.getElementById("errorMsg");
+
+    postBtn.addEventListener("click", async () => {
+      const title = document.getElementById("titleInput").value.trim();
+      const message = document.getElementById("messageInput").value.trim();
+      const adminName = document.getElementById("adminNameInput").value.trim();
+
+      if (!title || !message || !adminName) {
+        errorMsg.textContent = "⚠️ Please fill all fields!";
+        errorMsg.style.display = "block";
+        successMsg.style.display = "none";
+        return;
+      }
+
+      try {
+        await addDoc(collection(db, "announcements"), {
+          title,
+          message,
+          adminName,
+          timestamp: serverTimestamp()
+        });
+
+        document.getElementById("titleInput").value = "";
+        document.getElementById("messageInput").value = "";
+        document.getElementById("adminNameInput").value = "";
+        successMsg.style.display = "block";
+        errorMsg.style.display = "none";
+
+        setTimeout(() => (successMsg.style.display = "none"), 2500);
+      } catch (error) {
+        console.error("Error adding announcement:", error);
+        errorMsg.textContent = "❌ Error posting announcement. Try again.";
+        errorMsg.style.display = "block";
+        successMsg.style.display = "none";
+      }
+    });
+  </script>
+</body>
+</html>

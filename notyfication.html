@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Admin — TrustDollar</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+<link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
+<style>
+body {
+  font-family: 'Poppins', sans-serif;
+  background: #f9fafb;
+  margin: 0;
+  color: #222;
+  text-align: center;
+}
+.card {
+  background: #fff;
+  border-radius: 12px;
+  max-width: 420px;
+  margin: 60px auto;
+  padding: 25px;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.1);
+}
+input, textarea {
+  width: 100%;
+  padding: 10px;
+  margin-top: 8px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-family: inherit;
+}
+button {
+  background: #00c853;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 18px;
+  font-size: 15px;
+  cursor: pointer;
+  margin-top: 12px;
+  transition: all 0.2s ease;
+}
+button:hover { background: #00b34a; }
+button.ghost { background: #ccc; color:#333; }
+.small { font-size: 13px; color: #666; }
+#adminPanel, #unlockCard { display: none; }
+
+/* ✅ Popup */
+.alert {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%) scale(0.9);
+  background: #00c853;
+  color: #fff;
+  padding: 10px 22px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  font-size: 14px;
+  opacity: 0;
+  transition: all 0.3s ease;
+  z-index: 999;
+}
+.alert.show { opacity: 1; transform: translateX(-50%) scale(1); }
+
+.secret-ok { box-shadow: 0 0 0 3px rgba(0,200,83,0.1); border-color: #b9f6ca; }
+</style>
+</head>
+<body>
+
+<!-- 🔐 SECRET UNLOCK -->
+<div class="card" id="secretCard">
+  <h2><i class='bx bx-shield-quarter'></i> Admin Access</h2>
+  <p class="small">Enter secret key to unlock admin panel</p>
+  <input type="password" id="secretInput" placeholder="Enter secret key">
+  <div style="display:flex; gap:10px; justify-content:center;">
+    <button id="btnCheck">Unlock</button>
+    <button id="btnReveal" class="ghost">Show</button>
+  </div>
+  <p id="secretMsg" class="small"></p>
+</div>
+
+<!-- 🧩 ADMIN PANEL -->
+<div class="card" id="adminPanel">
+  <h2><i class='bx bx-bell'></i> Send Notification</h2>
+  <input type="email" id="targetEmail" placeholder="User email">
+  <textarea id="notifyMsg" rows="3" placeholder="Enter notification message..."></textarea>
+  <div style="display:flex; gap:10px; justify-content:center;">
+    <button id="btnSend">Send Notification</button>
+    <button id="btnBroadcast" class="ghost">Broadcast to ALL</button>
+  </div>
+  <p id="statusMsg" class="small"></p>
+</div>
+
+<div id="alertBox" class="alert">Message</div>
+
+<script type="module">
+const ADMIN_SECRET = "chaitanya155223"; // 🔑 apna secret key yahan dal
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { 
+  getFirestore, collection, query, where, getDocs, addDoc, serverTimestamp 
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDEQYPJFxQv8yFHptrTqoLHOn2L0PpgVhc",
+  authDomain: "btcinvest-c0e25.firebaseapp.com",
+  projectId: "btcinvest-c0e25",
+  storageBucket: "btcinvest-c0e25.firebasestorage.app",
+  messagingSenderId: "204937458487",
+  appId: "1:204937458487:web:cc27ece1249999279f60b2"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const secretCard = document.getElementById("secretCard");
+const adminPanel = document.getElementById("adminPanel");
+const secretInput = document.getElementById("secretInput");
+const btnCheck = document.getElementById("btnCheck");
+const btnReveal = document.getElementById("btnReveal");
+const secretMsg = document.getElementById("secretMsg");
+
+const targetEmail = document.getElementById("targetEmail");
+const notifyMsg = document.getElementById("notifyMsg");
+const btnSend = document.getElementById("btnSend");
+const btnBroadcast = document.getElementById("btnBroadcast");
+const statusMsg = document.getElementById("statusMsg");
+const alertBox = document.getElementById("alertBox");
+
+function showAlert(msg, color="#00c853") {
+  alertBox.style.background = color;
+  alertBox.textContent = msg;
+  alertBox.classList.add("show");
+  setTimeout(()=> alertBox.classList.remove("show"), 2500);
+}
+
+// reveal / hide password
+let reveal = false;
+btnReveal.addEventListener("click", ()=>{
+  reveal = !reveal;
+  secretInput.type = reveal ? "text" : "password";
+  btnReveal.textContent = reveal ? "Hide" : "Show";
+});
+
+// unlock logic
+function checkSecret() {
+  const val = secretInput.value.trim();
+  if (val === ADMIN_SECRET) {
+    secretMsg.textContent = "✅ Verified";
+    secretInput.classList.add("secret-ok");
+    setTimeout(()=>{
+      secretCard.style.display = "none";
+      adminPanel.style.display = "block";
+      showAlert("Access Granted ✅");
+    },300);
+  } else {
+    secretMsg.textContent = "❌ Wrong secret key";
+    secretInput.classList.remove("secret-ok");
+  }
+}
+btnCheck.addEventListener("click", checkSecret);
+
+// 🧾 Send single notification
+btnSend.addEventListener("click", async()=>{
+  const email = targetEmail.value.trim();
+  const msg = notifyMsg.value.trim();
+  if(!email || !msg){ 
+    statusMsg.textContent = "⚠️ Please enter email & message."; 
+    return; 
+  }
+
+  btnSend.disabled = true;
+  statusMsg.textContent = "⏳ Sending...";
+  
+  try{
+    const usersRef = collection(db, "users");
+    const q = query(usersRef, where("email", "==", email));
+    const snap = await getDocs(q);
+
+    if(snap.empty){ 
+      statusMsg.textContent="❌ User not found"; 
+      btnSend.disabled = false;
+      return; 
+    }
+
+    for (let docu of snap.docs) {
+      await addDoc(collection(db,"users",docu.id,"notifications"),{
+        message: msg,
+        seen: false,
+        type:"admin",
+        createdAt: serverTimestamp()
+      });
+    }
+
+    statusMsg.textContent="✅ Notification sent successfully!";
+    showAlert("Message delivered!");
+    notifyMsg.value="";
+  }catch(e){
+    console.error(e);
+    statusMsg.textContent="❌ Error: "+e.message;
+  }
+
+  btnSend.disabled = false;
+});
+
+// 🌍 Broadcast to all
+btnBroadcast.addEventListener("click", async()=>{
+  const msg = notifyMsg.value.trim();
+  if(!msg){ statusMsg.textContent = "⚠️ Write a message first."; return; }
+
+  if(!confirm("Are you sure to broadcast to ALL users?")) return;
+
+  btnBroadcast.disabled = true;
+  statusMsg.textContent="🌐 Broadcasting...";
+  
+  try{
+    const usersRef = collection(db, "users");
+    const snap = await getDocs(usersRef);
+    let count = 0;
+
+    for (let userDoc of snap.docs) {
+      await addDoc(collection(db,"users",userDoc.id,"notifications"),{
+        message: msg,
+        seen:false,
+        type:"admin_broadcast",
+        createdAt: serverTimestamp()
+      });
+      count++;
+    }
+
+    statusMsg.textContent=`✅ Broadcasted to ${count} users.`;
+    showAlert(`Sent to ${count} users ✅`);
+    notifyMsg.value="";
+  }catch(e){
+    console.error(e);
+    statusMsg.textContent="❌ Error: "+e.message;
+  }
+
+  btnBroadcast.disabled = false;
+});
+</script>
+
+</body>
+</html>

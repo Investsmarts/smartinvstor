@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Support Panel</title>
+
+  <style>
+    body {
+      background: #f8fafb;
+      font-family: 'Segoe UI', sans-serif;
+      padding: 20px;
+      color: #222;
+    }
+
+    h1 {
+      text-align: center;
+      color: #28a745;
+      margin-bottom: 25px;
+    }
+
+    .ticket-list {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    .ticket {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+      transition: 0.25s;
+    }
+
+    .ticket:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    }
+
+    .ticket-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .status {
+      font-weight: bold;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+
+    .status.Pending { background: #fff3cd; color: #856404; }
+    .status.Verifying { background: #cce5ff; color: #004085; }
+    .status.Success { background: #d4edda; color: #155724; }
+
+    .reply-box {
+      margin-top: 10px;
+    }
+
+    textarea {
+      width: 100%;
+      height: 60px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      padding: 8px;
+      resize: none;
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+
+    button {
+      padding: 8px 14px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 13px;
+    }
+
+    .verify-btn {
+      background: #007bff;
+      color: white;
+      margin-right: 6px;
+    }
+
+    .reply-btn {
+      background: #28a745;
+      color: white;
+    }
+
+    .ticket small {
+      color: #888;
+      display: block;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🛠️ Admin Support Panel</h1>
+
+  <div id="ticketList" class="ticket-list">
+    <!-- Tickets will appear here -->
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+    import {
+      getFirestore, collection, query, orderBy, onSnapshot,
+      updateDoc, doc
+    } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDEQYPJFxQv8yFHptrTqoLHOn2L0PpgVhc",
+      authDomain: "btcinvest-c0e25.firebaseapp.com",
+      projectId: "btcinvest-c0e25",
+      storageBucket: "btcinvest-c0e25.firebasestorage.app",
+      messagingSenderId: "204937458487",
+      appId: "1:204937458487:web:cc27ece1249999279f60b2",
+      measurementId: "G-HG0Q8ZHT6G"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const ticketList = document.getElementById("ticketList");
+
+    // 🔹 Load all tickets live
+    const q = query(collection(db, "user_support_tickets"), orderBy("time", "desc"));
+    onSnapshot(q, (snap) => {
+      ticketList.innerHTML = "";
+      if (snap.empty) {
+        ticketList.innerHTML = `<p style="text-align:center;opacity:0.6;">No support tickets yet.</p>`;
+        return;
+      }
+
+      snap.forEach((docSnap) => {
+        const d = docSnap.data();
+        const div = document.createElement("div");
+        div.className = "ticket";
+        div.innerHTML = `
+          <div class="ticket-header">
+            <div>
+              <strong>${d.name}</strong> <br>
+              <small>${d.email}</small>
+            </div>
+            <div class="status ${d.status}">${d.status}</div>
+          </div>
+          <p><b>Message:</b> ${d.message}</p>
+          <small>${new Date(d.time).toLocaleString()}</small>
+          
+          ${d.reply ? `<p><b>Reply:</b> ${d.reply}</p>` : `
+            <div class="reply-box">
+              <textarea id="reply-${docSnap.id}" placeholder="Type your reply..."></textarea>
+              <button class="verify-btn" onclick="markVerifying('${docSnap.id}')">Mark Verifying</button>
+              <button class="reply-btn" onclick="sendReply('${docSnap.id}')">Send Reply</button>
+            </div>
+          `}
+        `;
+        ticketList.appendChild(div);
+      });
+    });
+
+    // 🔹 Update to "Verifying"
+    window.markVerifying = async (id) => {
+      const ticketRef = doc(db, "user_support_tickets", id);
+      await updateDoc(ticketRef, { status: "Verifying" });
+    };
+
+    // 🔹 Send admin reply
+    window.sendReply = async (id) => {
+      const msg = document.getElementById(`reply-${id}`).value.trim();
+      if (!msg) return alert("Enter your reply first.");
+      const ticketRef = doc(db, "user_support_tickets", id);
+      await updateDoc(ticketRef, { reply: msg, status: "Success" });
+      alert("Reply sent successfully!");
+    };
+  </script>
+</body>
+</html>

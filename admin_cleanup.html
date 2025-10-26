@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🧹 TrustDollar Admin Cleanup</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+<style>
+body {
+  font-family: 'Poppins', sans-serif;
+  background: #f5f7fa;
+  margin: 0;
+  padding: 0;
+  color: #333;
+  text-align: center;
+}
+.container {
+  max-width: 420px;
+  margin: 80px auto;
+  padding: 25px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.1);
+}
+h1 { color: #28a745; margin-bottom: 20px; }
+button {
+  background: #28a745;
+  color: #fff;
+  font-weight: bold;
+  border: none;
+  border-radius: 10px;
+  padding: 14px 20px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: 0.3s;
+}
+button:hover { background: #218838; }
+.log-box {
+  text-align: left;
+  background: #f1f1f1;
+  border-radius: 10px;
+  padding: 15px;
+  height: 260px;
+  overflow-y: auto;
+  margin-top: 20px;
+  font-size: 14px;
+  color: #444;
+}
+</style>
+</head>
+<body>
+  <div class="container">
+    <h1>🧹 Clean Deposit Duplicates</h1>
+    <p>This will safely remove only duplicate deposit-based referral commissions.<br>
+    Mining, bonuses, and manual rewards are untouched.</p>
+    <button id="cleanupBtn">Run Cleanup</button>
+    <div id="logBox" class="log-box">Waiting...</div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+    import { getFirestore, getDocs, collection, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDEQYPJFxQv8yFHptrTqoLHOn2L0PpgVhc",
+      authDomain: "btcinvest-c0e25.firebaseapp.com",
+      projectId: "btcinvest-c0e25",
+      storageBucket: "btcinvest-c0e25.firebasestorage.app",
+      messagingSenderId: "204937458487",
+      appId: "1:204937458487:web:cc27ece1249999279f60b2",
+      measurementId: "G-HG0Q8ZHT6G"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const logBox = document.getElementById("logBox");
+    const btn = document.getElementById("cleanupBtn");
+
+    function log(msg) {
+      logBox.innerHTML += `<div>• ${msg}</div>`;
+      logBox.scrollTop = logBox.scrollHeight;
+      console.log(msg);
+    }
+
+    async function cleanDuplicateDepositCommissions() {
+      btn.disabled = true;
+      btn.textContent = "Cleaning...";
+      logBox.innerHTML = "<b>Starting cleanup...</b><br>";
+
+      const usersSnap = await getDocs(collection(db, "users"));
+      let totalUsers = usersSnap.size;
+      let totalDeleted = 0;
+
+      for (const userDoc of usersSnap.docs) {
+        const userId = userDoc.id;
+        const commissionsSnap = await getDocs(collection(db, "users", userId, "commissions"));
+        const seen = new Set();
+
+        for (const docSnap of commissionsSnap.docs) {
+          const c = docSnap.data();
+
+          // ✅ Only clean DEPOSIT rewards (safe filter)
+          if (!c.note || !c.note.includes("first deposit")) continue;
+
+          const key = `${c.fromUser}-${c.level}`;
+          if (seen.has(key)) {
+            await deleteDoc(doc(db, "users", userId, "commissions", docSnap.id));
+            totalDeleted++;
+            log(`🗑️ Deleted duplicate reward: ${key} for ${userId}`);
+          } else {
+            seen.add(key);
+          }
+        }
+      }
+
+      log(`<hr>✅ Cleanup completed.<br>
+           Users scanned: ${totalUsers}<br>
+           Duplicates removed: ${totalDeleted}<br>
+           <b>All mining and other earnings are safe.</b>`);
+      btn.disabled = false;
+      btn.textContent = "Run Again";
+    }
+
+    btn.addEventListener("click", cleanDuplicateDepositCommissions);
+  </script>
+</body>
+</html>

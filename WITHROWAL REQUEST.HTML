@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TrustDollar Admin Panel</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  body {background:#0b0b0b;color:#fff;font-family:'Poppins',sans-serif;margin:0;padding:25px;}
+  h1 {color:#ffcc00;text-align:center;font-size:28px;margin-bottom:30px;}
+  .search-bar {display:flex;justify-content:space-between;align-items:center;margin-bottom:25px;}
+  input {width:60%;padding:12px;border-radius:10px;border:none;outline:none;font-size:15px;}
+  .total {background:#111;border:2px solid #00ff6a;color:#00ff6a;padding:10px 20px;border-radius:12px;font-weight:600;text-align:center;font-size:15px;}
+  table {width:100%;border-collapse:collapse;background:#161616;border-radius:14px;overflow:hidden;}
+  th,td {padding:12px 15px;text-align:left;}
+  th {background:#202020;color:#ffcc00;font-weight:600;font-size:15px;}
+  td {border-bottom:1px solid #2a2a2a;font-size:14px;}
+  tr:hover {background:#1b1b1b;}
+  .wallet,.email {color:#4cc9f0;cursor:pointer;font-weight:500;text-decoration:underline;}
+  .wallet.hidden,.email.hidden {filter:blur(5px);}
+  .wallet:hover,.email:hover {filter:none;}
+  .btn {border:none;color:#fff;padding:7px 14px;border-radius:8px;cursor:pointer;font-weight:600;font-size:13px;transition:0.3s;}
+  .btn.reject{background:#ff3b3b;} .btn.approve{background:#00d26a;} .btn.refund{background:#00aaff;}
+  .btn:hover{opacity:0.8;}
+  td.amount{font-weight:600;color:#00ff88;} td.status{font-weight:600;text-transform:capitalize;}
+  .popup{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#00ff6a;color:#000;padding:14px 26px;border-radius:10px;font-weight:600;display:none;font-size:15px;box-shadow:0 0 20px rgba(0,255,100,0.3);animation:fadeInOut 1s ease forwards;z-index:999;}
+  @keyframes fadeInOut{0%{opacity:0;}20%{opacity:1;}80%{opacity:1;}100%{opacity:0;}}
+</style>
+</head>
+<body>
+  <div class="search-bar">
+    <input type="text" id="searchBox" placeholder="🔍 Search by name, email, or order ID...">
+    <div class="total">Total Completed: $<span id="totalCompleted">0.00</span></div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Email</th>
+        <th>Wallet</th>
+        <th>Amount</th>
+        <th>Order ID</th>
+        <th>Status</th>
+        <th>Time</th>
+        <th>Reject</th>
+        <th>Approve</th>
+        <th>Refund</th>
+      </tr>
+    </thead>
+    <tbody id="withdrawTable">
+      <tr><td colspan="10" style="text-align:center;opacity:0.7;">Loading data...</td></tr>
+    </tbody>
+  </table>
+
+  <div id="copyPopup" class="popup">✅ Copied!</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+import { getFirestore, collectionGroup, onSnapshot, updateDoc, doc, getDoc } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDEQYPJFxQv8yFHptrTqoLHOn2L0PpgVhc",
+  authDomain: "btcinvest-c0e25.firebaseapp.com",
+  projectId: "btcinvest-c0e25",
+  storageBucket: "btcinvest-c0e25.firebasestorage.app",
+  messagingSenderId: "204937458487",
+  appId: "1:204937458487:web:cc27ece1249999279f60b2",
+  measurementId: "G-HG0Q8ZHT6G"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const table = document.getElementById("withdrawTable");
+const totalEl = document.getElementById("totalCompleted");
+const searchBox = document.getElementById("searchBox");
+const copyPopup = document.getElementById("copyPopup");
+
+let allData = [];
+
+// ✅ FAST + SORTED REALTIME SNAPSHOT
+const q = collectionGroup(db, "withdrawals");
+onSnapshot(q, async (snap) => {
+  const temp = [];
+  let totalCompleted = 0;
+
+  // Preload all user data once to avoid multiple getDoc calls
+  const userCache = new Map();
+
+  for (const docSnap of snap.docs) {
+    const d = docSnap.data();
+    const userPath = docSnap.ref.path.split("/")[1];
+
+    if (!userCache.has(userPath)) {
+      const userRef = doc(db, "users", userPath);
+      const userDoc = await getDoc(userRef);
+      userCache.set(userPath, userDoc.exists() ? userDoc.data() : {});
+    }
+
+    const userData = userCache.get(userPath);
+
+    temp.push({
+      id: docSnap.id,
+      userId: userPath,
+      name: userData.name || userData.username || "Unknown",
+      email: userData.email || "—",
+      address: d.address || "—",
+      orderId: d.orderId || "—",
+      amount: d.amount || 0,
+      status: d.status || "Pending",
+      time: d.date ? new Date(d.date.seconds * 1000) : new Date(0)
+    });
+
+    if ((d.status || "").toLowerCase() === "completed") {
+      totalCompleted += parseFloat(d.amount || 0);
+    }
+  }
+
+  // 🕒 Sort latest first
+  temp.sort((a, b) => b.time - a.time);
+
+  allData = temp;
+  totalEl.textContent = totalCompleted.toFixed(2);
+  renderTable(allData);
+});
+
+// ✅ RENDER FUNCTION (LIGHT + FAST)
+function renderTable(data) {
+  if (!data.length) {
+    table.innerHTML = `<tr><td colspan="10" style="text-align:center;opacity:0.7;">No data found</td></tr>`;
+    return;
+  }
+
+  table.innerHTML = data.map(item => `
+    <tr>
+      <td>${item.name}</td>
+      <td class="email hidden" onclick="copyText('${item.email}')">${item.email}</td>
+      <td class="wallet hidden" onclick="copyText('${item.address}')">${item.address.slice(0, 10)}...</td>
+      <td class="amount">$${item.amount}</td>
+      <td class="orderid" onclick="copyText('${item.orderId}')">${item.orderId}</td>
+      <td class="status">${item.status}</td>
+      <td>${item.time.toLocaleString()}</td>
+      <td><button class="btn reject" onclick="updateStatus('${item.userId}','${item.id}','Rejected',${item.amount})">Reject</button></td>
+      <td><button class="btn approve" onclick="updateStatus('${item.userId}','${item.id}','Completed',${item.amount})">Approve</button></td>
+      <td><button class="btn refund" onclick="updateStatus('${item.userId}','${item.id}','Refunded',${item.amount})">Refund</button></td>
+    </tr>
+  `).join("");
+}
+
+// ✅ COPY TEXT
+window.copyText = (text) => {
+  navigator.clipboard.writeText(text);
+  copyPopup.style.display = "block";
+  setTimeout(() => (copyPopup.style.display = "none"), 1000);
+};
+
+// ✅ UPDATE STATUS
+window.updateStatus = async (userId, wid, status, amount) => {
+  try {
+    const ref = doc(db, "users", userId, "withdrawals", wid);
+    await updateDoc(ref, { status });
+
+    if (["Rejected", "Refunded"].includes(status)) {
+      const userRef = doc(db, "users", userId);
+      const snap = await getDoc(userRef);
+      if (snap.exists()) {
+        const balance = parseFloat(snap.data().walletBalance || 0);
+        await updateDoc(userRef, { walletBalance: balance + parseFloat(amount) });
+      }
+    }
+
+    alert(`✅ ${status} Successfully!`);
+  } catch (err) {
+    alert("❌ Error: " + err.message);
+  }
+};
+
+// ✅ SEARCH FILTER
+searchBox.addEventListener("input", (e) => {
+  const val = e.target.value.toLowerCase();
+  const filtered = allData.filter(d =>
+    d.name.toLowerCase().includes(val) ||
+    d.email.toLowerCase().includes(val) ||
+    d.orderId.toLowerCase().includes(val)
+  );
+  renderTable(filtered);
+});
+</script>
+</body>
+</html>

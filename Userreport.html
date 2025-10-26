@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>TrustDollar — Admin Users (Light Theme + Lifetime Deposit Edit)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg:#f7f9fb;
+      --panel:#ffffff;
+      --row:#fbfdff;
+      --muted:#6b7280;
+      --accent:#d97706;
+      --green:#16a34a;
+      --blue:#0b84ff;
+      --border:#e6eef6;
+      --text:#12202b;
+      --card:#ffffff;
+      --success:#16a34a;
+      --notify-bg: rgba(45, 212, 191, 0.95);
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:'Poppins',sans-serif;background:var(--bg);color:var(--text);padding:24px;}
+    header{text-align:center;margin-bottom:10px;}
+    h1{margin:0;color:var(--accent);font-size:28px;}
+    .top-row{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:18px 0 20px;flex-wrap:wrap;}
+    .stats{color:var(--green);font-weight:700;font-size:16px;}
+    .search{flex:1 1 420px;max-width:760px;margin:auto;display:flex;justify-content:center;}
+    .search input{width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--border);outline:none;background:var(--card);color:var(--text);box-shadow:0 6px 20px rgba(16,24,40,0.04);font-size:14px;}
+    table{width:100%;border-collapse:collapse;background:transparent;border-radius:10px;overflow:hidden;box-shadow:0 8px 30px rgba(15,23,42,0.04);}
+    thead th{background:var(--panel);color:var(--accent);padding:12px 14px;font-weight:700;text-align:left;font-size:13px;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:2;}
+    tbody tr{background:var(--panel);border-bottom:1px solid var(--border);}
+    td{padding:12px 14px;vertical-align:middle;font-size:14px;color:var(--text);white-space:nowrap;}
+    tbody tr:hover{background:var(--row);}
+    .col-name,.col-email{max-width:220px;overflow:hidden;text-overflow:ellipsis;}
+    .col-wallet{color:var(--green);font-weight:700;cursor:pointer;}
+    .clickable{cursor:pointer;color:var(--blue);text-decoration:underline;}
+    .small-btn{padding:8px 12px;border-radius:8px;border:0;cursor:pointer;font-weight:700;font-size:13px;}
+    .btn-edit{background:var(--blue);color:#fff;box-shadow:0 6px 18px rgba(11,132,255,0.12);}
+    .meta{color:var(--muted);font-size:12px;}
+    .modal-backdrop{position:fixed;inset:0;display:none;justify-content:center;align-items:center;background:rgba(2,6,23,0.35);z-index:999;}
+    .modal{width:420px;max-width:94%;background:var(--panel);border-radius:12px;padding:18px;box-shadow:0 20px 50px rgba(16,24,40,0.12);}
+    .modal h3{margin:0 0 8px;color:var(--accent);}
+    .field{margin:10px 0;}
+    .field label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px;}
+    .field input,.field textarea{width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);outline:none;}
+    .modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px;}
+    .btn-cancel{background:#ef4444;color:#fff;border:0;padding:9px 12px;border-radius:8px;cursor:pointer;box-shadow:0 6px 18px rgba(239,68,68,0.08);}
+    .btn-save{background:linear-gradient(90deg,#16a34a,#22c55e);color:#fff;border:0;padding:9px 12px;border-radius:8px;cursor:pointer;box-shadow:0 6px 18px rgba(16,163,127,0.08);}
+    #copyPopup{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2000;background:var(--notify-bg);color:#032;padding:10px 18px;border-radius:10px;font-weight:700;display:none;box-shadow:0 12px 40px rgba(2,6,23,0.12);}
+    @media (max-width:880px){thead th:nth-child(4),td:nth-child(4){display:none;}}
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>💼 TrustDollar — User Admin</h1>
+  </header>
+
+  <div class="top-row">
+    <div class="stats">Total Users: <span id="userCount">0</span></div>
+    <div class="search">
+      <input id="searchBox" placeholder="🔎 Search by name or email or order id..." />
+    </div>
+  </div>
+
+  <table aria-live="polite">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Email</th>
+        <th>Wallet ($)</th>
+        <th>Created</th>
+        <th style="width:120px">Action</th>
+      </tr>
+    </thead>
+    <tbody id="userList">
+      <tr><td colspan="5" style="text-align:center;padding:28px;color:var(--muted)">Loading users…</td></tr>
+    </tbody>
+  </table>
+
+  <!-- Edit Modal -->
+  <div class="modal-backdrop" id="modalBackdrop">
+    <div class="modal">
+      <h3>Edit User Details</h3>
+      <div class="field"><label>Name</label><input id="modalName" type="text" readonly /></div>
+      <div class="field"><label>Email</label><input id="modalEmail" type="text" readonly /></div>
+      <div class="field"><label>Wallet Balance ($)</label><input id="modalBalance" type="number" step="0.01" /></div>
+      <div class="field"><label>Lifetime Deposit ($)</label><input id="modalLifetime" type="number" step="0.01" /></div>
+      <div class="field"><label>Note (optional)</label><textarea id="modalNote" rows="2"></textarea></div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div class="meta" id="modalMeta"></div>
+        <div class="modal-actions">
+          <button class="btn-cancel" id="modalCancel">Cancel</button>
+          <button class="btn-save" id="modalSave">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="copyPopup">Copied ✅</div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+    import { getFirestore, collection, query, orderBy, onSnapshot, doc, updateDoc, limit } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDEQYPJFxQv8yFHptrTqoLHOn2L0PpgVhc",
+      authDomain: "btcinvest-c0e25.firebaseapp.com",
+      projectId: "btcinvest-c0e25",
+      storageBucket: "btcinvest-c0e25.firebasestorage.app",
+      messagingSenderId: "204937458487",
+      appId: "1:204937458487:web:cc27ece1249999279f60b2",
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const userList = document.getElementById("userList");
+    const userCount = document.getElementById("userCount");
+    const searchBox = document.getElementById("searchBox");
+    const copyPopup = document.getElementById("copyPopup");
+
+    const modalBackdrop = document.getElementById("modalBackdrop");
+    const modalName = document.getElementById("modalName");
+    const modalEmail = document.getElementById("modalEmail");
+    const modalBalance = document.getElementById("modalBalance");
+    const modalLifetime = document.getElementById("modalLifetime");
+    const modalNote = document.getElementById("modalNote");
+    const modalMeta = document.getElementById("modalMeta");
+    const modalCancel = document.getElementById("modalCancel");
+    const modalSave = document.getElementById("modalSave");
+
+    let allUsers = [], userMap = {}, activeEditId = null;
+
+    const q = query(collection(db, "users"), orderBy("createdAt", "desc"), limit(200));
+    onSnapshot(q, snap => {
+      allUsers = []; userMap = {};
+      snap.forEach(docSnap => {
+        const d = docSnap.data() || {}, id = docSnap.id;
+        allUsers.push({
+          id,
+          name: d.name || (d.email ? d.email.split("@")[0] : "Unknown"),
+          email: d.email || "—",
+          walletBalance: d.walletBalance || 0,
+          lifetimeDeposit: d.lifetimeDeposit || 0,
+          createdAt: d.createdAt?.seconds ? new Date(d.createdAt.seconds * 1000).toLocaleString() : "—",
+          raw: d
+        });
+        userMap[id] = allUsers[allUsers.length - 1];
+      });
+      render(allUsers);
+      userCount.textContent = allUsers.length;
+    });
+
+    function render(arr){
+      userList.innerHTML = arr.length ? arr.map(u=>`
+        <tr>
+          <td>${u.name}</td>
+          <td>${u.email}</td>
+          <td>$${Number(u.walletBalance).toFixed(2)}</td>
+          <td>${u.createdAt}</td>
+          <td><button class="small-btn btn-edit" onclick="openEditModal('${u.id}')">Edit</button></td>
+        </tr>`).join("") :
+        `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:18px">No users</td></tr>`;
+    }
+
+    window.openEditModal = id => {
+      const u = userMap[id];
+      if(!u) return;
+      activeEditId = id;
+      modalName.value = u.name;
+      modalEmail.value = u.email;
+      modalBalance.value = Number(u.walletBalance).toFixed(2);
+      modalLifetime.value = Number(u.lifetimeDeposit || 0).toFixed(2);
+      modalNote.value = "";
+      modalMeta.textContent = "UID: " + id;
+      modalBackdrop.style.display = "flex";
+    };
+
+    modalCancel.onclick = ()=> modalBackdrop.style.display = "none";
+
+    modalSave.onclick = async ()=>{
+      if(!activeEditId) return;
+      const id = activeEditId;
+      const wallet = parseFloat(modalBalance.value);
+      const lifetime = parseFloat(modalLifetime.value);
+      if(isNaN(wallet) || isNaN(lifetime)) return alert("Enter valid amounts");
+      try{
+        const ref = doc(db,"users",id);
+        await updateDoc(ref,{
+          walletBalance: Number(wallet.toFixed(2)),
+          lifetimeDeposit: Number(lifetime.toFixed(2)),
+          adminNote: modalNote.value.trim() || null
+        });
+        showPopup("Saved ✅");
+        modalBackdrop.style.display = "none";
+      }catch(err){alert("Update failed: "+err.message);}
+    };
+
+    function showPopup(t){
+      copyPopup.textContent=t;
+      copyPopup.style.display="block";
+      setTimeout(()=>copyPopup.style.display="none",1000);
+    }
+
+    searchBox.oninput=e=>{
+      const v=e.target.value.toLowerCase();
+      render(!v?allUsers:allUsers.filter(u=>u.name.toLowerCase().includes(v)||u.email.toLowerCase().includes(v)));
+    };
+  </script>
+</body>
+</html>
